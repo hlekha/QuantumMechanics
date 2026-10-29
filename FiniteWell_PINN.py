@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[21]:
+# In[6]:
 
 
 import torch
@@ -16,9 +16,21 @@ a = 0.5
 v0 = 20.0
 x_max = 3.0
 
+def potential(x):
+    return torch.where(
+        torch.abs(x) < a,
+        torch.zeros_like(x),
+        torch.full_like(x, v0)
+    )
+
+
+energy = nn.Parameter(torch.tensor(-1.0))
+def _get_energy():
+    return v0 * torch.sigmoid(energy)
+
 
 def _get_tensor():
-    tensor = torch.linspace(0, 1, 100).reshape(100, 1)
+    tensor = torch.linspace(-x_max, x_max, 600).reshape(-1, 1)
     tensor.requires_grad_(True)
 
     return tensor
@@ -61,9 +73,9 @@ grad_outputs=torch.ones_like(psi):
 [0]:
     gets gradient tensor
 """
-def _get_physics_loss(psi, second_deriv):
+def _get_physics_loss(psi, second_deriv, x):
 
-    residual = second_deriv + (E-V)*psi
+    residual = second_deriv + (E- potential(x))*psi
     physics_loss = torch.mean(residual**2)
 
     return physics_loss
@@ -71,7 +83,7 @@ def _get_physics_loss(psi, second_deriv):
 # Boundary Loss
 
 def _get_boundary_loss():
-    walls = torch.tensor([[0.0], [1.0]])
+    walls = torch.tensor([[-x_max], [x_max]])
     psi_walls = model(walls)
 
     boundary_loss = torch.mean(psi_walls**2)
@@ -97,7 +109,7 @@ We use unsqueeze so we can integrate along each position - changes tensor from [
 
 
 optimizer = torch.optim.Adam(
-    list(model.parameters()) + [E],
+    list(model.parameters()) + [energy],
     lr = 0.001
 )
 
@@ -117,7 +129,7 @@ for epoch in range(5000):
     dpsi_dx = _get_psi_prime(psi, x)
     d2psi_dx2 = _get_second_deriv(dpsi_dx, x)
 
-    physics_loss = _get_physics_loss(psi, d2psi_dx2)
+    physics_loss = _get_physics_loss(psi, d2psi_dx2, x)
     boundary_loss = _get_boundary_loss()
     norm_loss, normal = _get_normalization_loss(psi, x)
     loss = physics_loss + 10*boundary_loss + 10*norm_loss
@@ -134,49 +146,51 @@ for epoch in range(5000):
         print(
             f"Epoch {epoch:4d} | "
             f"Loss: {loss.item():.6f} | "
-            f"Energy: {E.item():.6f} | "
+            f"Energy: {_get_energy().item():.6f} | "
             f"Norm: {normal.item():.6f}"
         )
 
 
-# Evaluate the trained wavefunction
-x_plot = torch.linspace(0, 1, 500).reshape(-1, 1)
+x_plot = torch.linspace(-x_max, x_max, 1000).reshape(-1, 1)
 
 with torch.no_grad():
-    psi_pred = model(x_plot)
-    psi_exact = actual_solution(x_plot)
+    psi_pred = model(x_plot).squeeze(-1).numpy()
+    V_plot = potential(x_plot).squeeze(-1).numpy()
+    energy = _get_energy().item()
 
-    # Align signs: ψ and -ψ describe the same physical state
-    if torch.sum(psi_pred * psi_exact) < 0:
-        psi_pred = -psi_pred
+positions = x_plot.squeeze(-1).numpy()
 
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-# Wavefunction comparison
-axes[0].plot(
-    x_plot.numpy(), psi_pred.numpy(),
-    label="PINN", linewidth=2
-)
-axes[0].plot(
-    x_plot.numpy(), psi_exact.numpy(),
-    "--", label="Analytical ground state", linewidth=2
-)
+ax = axes[0]
+ax.plot(positions, psi_pred, color="blue", label="PINN")
+ax.axvline(-a, color="gray", linestyle=":")
+ax.axvline(a, color="gray", linestyle=":")
+ax.set_xlabel("Dimensionless position x")
+ax.set_ylabel("Wavefunction", color="blue")
+ax.grid(alpha=0.3)
 
-axes[0].axvline(0, color="gray", linestyle=":", label="Well walls")
-axes[0].axvline(1, color="gray", linestyle=":")
-axes[0].set_xlabel("Dimensionless position x")
-axes[0].set_ylabel("Time-Independent Wavefunction")
-axes[0].set_title(f"Infinite square well:Energy = {E.item():.4f}")
-axes[0].legend()
-axes[0].grid(alpha=0.3)
+ax_potential = ax.twinx()
+ax_potential.plot(
+    positions, V_plot,
+    color="black", drawstyle="steps-mid", label="V(x)"
+)
+ax_potential.axhline(
+    energy, color="red", linestyle="--",
+    label=f"Energy = {energy:.4f}"
+)
+ax_potential.set_ylabel("Dimensionless potential / energy")
+ax_potential.set_ylim(-0.05 * v0, 1.15 * v0)
 
-# Training loss
+lines1, labels1 = ax.get_legend_handles_labels()
+lines2, labels2 = ax_potential.get_legend_handles_labels()
+ax.legend(lines1 + lines2, labels1 + labels2, loc="upper right")
+ax.set_title("Finite square well")
+
 axes[1].semilogy(
-    loss_history, label="Total", color="black", linewidth=2
+    loss_history, color="black", linewidth=2, label="Total"
 )
-axes[1].semilogy(
-    physics_history, label="Physics", alpha=0.8
-)
+axes[1].semilogy(physics_history, label="Physics", alpha=0.8)
 axes[1].semilogy(
     10 * np.array(boundary_history),
     label="10 × boundary", alpha=0.8
@@ -185,10 +199,9 @@ axes[1].semilogy(
     10 * np.array(norm_history),
     label="10 × normalization", alpha=0.8
 )
-
 axes[1].set_xlabel("Training iteration")
 axes[1].set_ylabel("Loss")
-axes[1].set_title("PINN training loss")
+axes[1].set_title("Finite-well training loss")
 axes[1].legend()
 axes[1].grid(alpha=0.3)
 
