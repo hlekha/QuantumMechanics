@@ -12,5 +12,9 @@ This repository consists of all of the problems and concepts in "Griffiths, D. J
 </p>
 
 <p align="center">
-  <img width="1388" height="490" alt="image" src="https://github.com/user-attachments/assets/d963256c-6d2e-4db2-b14e-00b9a13892a8" />
+  <img width="1390" height="490" alt="pinn" src="https://github.com/user-attachments/assets/2d180efb-361c-44bb-9d13-f370aa883b72" />
+</p>
+
+<p align="center">
+  <img width="480" height="173" alt="Screenshot 2026-11-02 220100" src="https://github.com/user-attachments/assets/d9f1ceed-1bfa-455f-929b-680236f8c8e4" />
 </p>
