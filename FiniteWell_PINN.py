@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[6]:
+# In[5]:
 
 
 import torch
@@ -24,11 +24,6 @@ def potential(x):
     )
 
 
-energy = nn.Parameter(torch.tensor(-1.0))
-def _get_energy():
-    return v0 * torch.sigmoid(energy)
-
-
 def _get_tensor():
     tensor = torch.linspace(-x_max, x_max, 600).reshape(-1, 1)
     tensor.requires_grad_(True)
@@ -44,7 +39,7 @@ model = nn.Sequential(
     nn.Linear(32, 1)
 )
 
-E = nn.Parameter(torch.tensor(10.0))
+E = nn.Parameter(torch.tensor(10.0), requires_grad=True)
 
 def _get_psi_prime(psi, x):
     dpsi_dx = torch.autograd.grad(
@@ -109,7 +104,7 @@ We use unsqueeze so we can integrate along each position - changes tensor from [
 
 
 optimizer = torch.optim.Adam(
-    list(model.parameters()) + [energy],
+    list(model.parameters()) + [E],
     lr = 0.001
 )
 
@@ -146,17 +141,16 @@ for epoch in range(5000):
         print(
             f"Epoch {epoch:4d} | "
             f"Loss: {loss.item():.6f} | "
-            f"Energy: {_get_energy().item():.6f} | "
+            f"Energy: {E.item():.6f} | "
             f"Norm: {normal.item():.6f}"
         )
-
 
 x_plot = torch.linspace(-x_max, x_max, 1000).reshape(-1, 1)
 
 with torch.no_grad():
     psi_pred = model(x_plot).squeeze(-1).numpy()
     V_plot = potential(x_plot).squeeze(-1).numpy()
-    energy = _get_energy().item()
+    energy = E.item()
 
 positions = x_plot.squeeze(-1).numpy()
 
@@ -207,10 +201,4 @@ axes[1].grid(alpha=0.3)
 
 plt.tight_layout()
 plt.show()
-
-
-# In[ ]:
-
-
-
 
